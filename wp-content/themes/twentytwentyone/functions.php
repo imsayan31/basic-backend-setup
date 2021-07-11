@@ -630,16 +630,26 @@ add_action( 'wp_footer', 'twentytwentyone_add_ie_class' );
 
 
 /**
- * Generate Enroute APIs
+ * Generate Sportsblog APIs
  *
  */
 
-function register_api_hooks() {
+add_action( 'rest_api_init', 'register_sportsblog_api_hooks');
+
+function register_sportsblog_api_hooks() {
 	
-	register_rest_route( 'enroute/v1', '/store-orders/', array(
+	/* Fetch Categories */
+	register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/', array(
 	    /*'methods' => WP_REST_Server::CREATABLE,*/
 	    'methods' => WP_REST_Server::ALLMETHODS,
-	    'callback' => 'n2_enroute_store_orders',
+	    'callback' => 'sportsblogGetCategories'
+  	));
+
+	/* Add Category */
+	register_rest_route( 'sportsblog/v1', '/sports-category/add-category/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => WP_REST_Server::ALLMETHODS,
+	    'callback' => 'sportsblogAddCategory',
 	    'args' => array(
 	    	'store_code' => array(
 	    		'type' => 'string'
@@ -647,7 +657,28 @@ function register_api_hooks() {
 	    )
   	));
 
-	register_rest_route( 'enroute/v1', '/order-details/(?P<id>\d+)', array(
+	/* Get Category */
+	register_rest_route( 'sportsblog/v1', '/sports-category/get-category-details/(?P<catId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'GET',
+	    'callback' => 'sportsblogGetCategoryDetails'
+  	));
+
+	/* Update Category */
+	register_rest_route( 'sportsblog/v1', '/sports-category/update-category/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'PUT',
+	    'callback' => 'sportsblogUpdateCategory'
+  	));
+
+	/* Delete Category */
+	register_rest_route( 'sportsblog/v1', '/sports-category/delete-category/(?P<catId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'DELETE',
+	    'callback' => 'sportsblogDeleteCategory'
+  	));
+
+	/*register_rest_route( 'enroute/v1', '/order-details/(?P<id>\d+)', array(
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'n2_enroute_order_details'
   	));
@@ -655,170 +686,103 @@ function register_api_hooks() {
 	register_rest_route( 'enroute/v1', '/product-details/(?P<id>\d+)', array(
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'n2_enroute_product_details'
-  	));
+  	));*/
 
 }
 
 /*
- * Get Orders
+ * Get Sports Categories
  *
  */
-function n2_enroute_store_orders(WP_REST_Request $requestParams) {
-	$requestedData = $requestParams->get_params();
-	$getOrders = get_posts( array(
-	    'numberposts' => -1,
-	    'meta_key'    => '_enroute_order',
-	    'meta_value'  => $requestedData['store_code'],
-	    'meta_compare'  => '=',
-	    'post_type'   => wc_get_order_types(),
-	    'post_status' => array_keys( wc_get_order_statuses() ),
-	) );
-	if(!empty($getOrders)) {
-		return ['status' => 200, 'message' => 'Orders received successfully.', 'store_code' => $requestParams->get_param('store_code'), 'orders' => $getOrders];
-	} else {
-		return ['status' => 200, 'message' => 'No order found.', 'store_code' => $requestParams->get_param('store_code'), 'orders' => []];
+//function sportsblog_get_categories($data) {
+if(!function_exists('sportsblogGetCategories')) {
+	function sportsblogGetCategories() {
+
+		//$order = wc_get_order($data['id']);
+		$getSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false]);
+		if(!empty($getSportsCategory)) {
+			return ['status' => 200, 'message' => 'Sports categories fetched successfully.', 'categories' => $getSportsCategory];
+		} else {
+			return ['status' => 400, 'message' => 'No sports category found.', 'categories' => []];
+		}
 	}
 }
 
 /*
- * Get Order Details
+ * Add Sports Category
  *
  */
-function n2_enroute_order_details($data) {
-	$orderData = new stdClass();
+if(!function_exists('sportsblogAddCategory')) {
+	function sportsblogAddCategory(WP_REST_Request $requestParams) {
+		$requestedData = $requestParams->get_params();
 
-	$order = wc_get_order($data['id']);
+		//'store_code' => $requestParams->get_param('store_code')
+		$category_name = $requestedData['category_name'];
+		$category_desc = $requestedData['category_desc'];
+		$termArg = ['description' => $category_desc];
 
-	/* Order Initial Details */
-	$order_id  = $order->get_id();
-	$orderStatus  = $order->get_status();
-	$orderCurrency = $order->get_currency();
-	
-	/* Order Total Details */
-	/*$orderSubTotal = $order->get_subtotal();
-	$orderSubTotalToDisplay = $order->get_subtotal_to_display();
-	$orderSubTotalToDisplay = $order->get_tax_location();
-	$orderSubTotalToDisplay = $order->get_tax_totals();
-	$orderSubTotalToDisplay = $order->get_taxes();
-	$orderSubTotalToDisplay = $order->get_total();
-	$orderSubTotalToDisplay = $order->get_total_discount();*/
-
-	/* Order Date Details */
-	$orderCreated = $order->get_date_created();
-	$orderModified = $order->get_date_modified();
-	$orderCompleted = $order->get_date_completed();
-	$orderPaid = $order->get_date_paid();
-
-	/* Order Payment Details */
-	$orderPaymentMethod = $order->get_payment_method();
-	$orderPaymentMethodTitle = $order->get_payment_method_title();
-	$orderTransactionID = $order->get_transaction_id();
-
-	/* Order Shipping Details */
-	$shippingMethod = $order->get_shipping_method();
-	$shippingFirstName = $order->get_shipping_first_name();
-	$shippingLastName = $order->get_shipping_last_name();
-	$shippingCompany = $order->get_shipping_company();
-	$shippingAddress1 = $order->get_shipping_address_1();
-	$shippingAddress2 = $order->get_shipping_address_2();
-	$shippingCity = $order->get_shipping_city();
-	$shippingState = $order->get_shipping_state();
-	$shippingPostcode = $order->get_shipping_postcode();
-	$shippingCountry = $order->get_shipping_country();
-	$shippingTotal = $order->get_shipping_total();
-	$enrouteDeliveryDate = get_post_meta($data['id'], '_enroute_order_date', true);
-	$enrouteDeliveryTime = get_post_meta($data['id'], '_enroute_order_time', true);
-
-	/* Order Formatted Data */
-	$orderTotal = $order->get_formatted_order_total();
-	$orderAddress = $order->get_address();
-	$orderShippingAddressMapURL = $order->get_shipping_address_map_url();
-	$orderBillingFullName = $order->get_formatted_billing_full_name();
-	$orderShippingFullName = $order->get_formatted_shipping_full_name();
-	$orderBillingAddress = $order->get_formatted_billing_address();
-	$orderShippingAddress = $order->get_formatted_shipping_address();
-
-	/* Order Items Data */
-	$orderItemData = [];
-	$i = 0;
-	foreach ( $order->get_items() as $item_id => $item ) {
-	   $product_id = $item->get_product_id();
-	   $variation_id = $item->get_variation_id();
-	   $product = $item->get_product();
-	   $name = $item->get_name();
-	   $quantity = $item->get_quantity();
-	   $subtotal = $item->get_subtotal();
-	   $total = $item->get_total();
-	   $tax = $item->get_subtotal_tax();
-	   $taxclass = $item->get_tax_class();
-	   $taxstat = $item->get_tax_status();
-	   $allmeta = $item->get_meta_data();
-	   $somemeta = $item->get_meta( '_whatever', true );
-	   $type = $item->get_type();
-
-	   $orderItemData[$i]['product_id'] = $product_id;
-	   $orderItemData[$i]['variation_id'] = $variation_id;
-	   $orderItemData[$i]['product'] = $product;
-	   $orderItemData[$i]['name'] = $name;
-	   $orderItemData[$i]['quantity'] = $quantity;
-	   $orderItemData[$i]['subtotal'] = $subtotal;
-	   $orderItemData[$i]['total'] = $total;
-	   $orderItemData[$i]['tax'] = $tax;
-	   $orderItemData[$i]['taxclass'] = $taxclass;
-	   $orderItemData[$i]['taxstat'] = $taxstat;
-	   $orderItemData[$i]['allmeta'] = $allmeta;
-	   $orderItemData[$i]['somemeta'] = $somemeta;
-	   $orderItemData[$i]['type'] = $type;
-	   $i++;
+		$categoryInserted = wp_insert_term($category_name, 'sports_blog_category', $termArg);
+		if(!empty($categoryInserted)) {
+			return ['status' => 200, 'message' => 'Sports category added successfully.'];
+		} else {
+			return ['status' => 400, 'message' => 'No category added.'];
+		}
 	}
-
-	$orderData->order_id = $order_id;
-	$orderData->order_status = $orderStatus;
-	$orderData->order_total = $orderTotal;
-	$orderData->order_currency = $orderCurrency;
-	$orderData->order_currency_symbol = get_woocommerce_currency_symbol($orderCurrency);
-	$orderData->payment_method = $orderPaymentMethod;
-	$orderData->payment_method_title = $orderPaymentMethodTitle;
-	$orderData->transaction_id = $orderTransactionID;
-	$orderData->order_created_on = $orderCreated;
-	$orderData->order_modified_on = $orderModified;
-	$orderData->order_completed_on = $orderCompleted;
-	$orderData->order_paid_on = $orderPaid;
-	$orderData->shipping_method = $shippingMethod;
-	$orderData->shipping_first_name = $shippingFirstName;
-	$orderData->shipping_last_name = $shippingLastName;
-	$orderData->shipping_company = $shippingCompany;
-	$orderData->shipping_address_1 = $shippingAddress1;
-	$orderData->shipping_address_2 = $shippingAddress2;
-	$orderData->shipping_city = $shippingCity;
-	$orderData->shipping_state = $shippingState;
-	$orderData->shipping_postcode = $shippingPostcode;
-	$orderData->shipping_country = $shippingCountry;
-	$orderData->shipping_total = $shippingTotal;
-	$orderData->order_address = $orderAddress;
-	$orderData->shipping_address_map_url = $orderShippingAddressMapURL;
-	$orderData->billing_full_name = $orderBillingFullName;
-	$orderData->shipping_full_name = $orderShippingFullName;
-	$orderData->billing_address = $orderBillingAddress;
-	$orderData->shipping_address = $orderShippingAddress;
-	$orderData->enroute_delivery_date = $enrouteDeliveryDate;
-	$orderData->enroute_delivery_time = $enrouteDeliveryTime;
-	$orderData->order_items = $orderItemData;
-
-	$orderDetails[] = $orderData;
-	
-	return ['status' => 200, 'message' => 'Orders details received successfully.', 'orders_details' => $orderDetails];
-	
 }
 
 /*
- * Get Product Details
+ * Get Sports Category Details
  *
  */
-function n2_enroute_product_details($data) {
-	$productData = new stdClass();
-
-	$product = wc_get_product($data['id']);
+if(!function_exists('sportsblogGetCategoryDetails')) {
+	function sportsblogGetCategoryDetails($data) {
+		$catId = $data->get_param( 'catId' );
+		$getCategoryDetails = get_term_by('id', $catId, 'sports_blog_category');
+		if(!empty($getCategoryDetails)) {
+			return ['status' => 200, 'message' => 'Category details received.', 'catDetails' => $getCategoryDetails];
+		} else {
+			return ['status' => 400, 'message' => 'No category found.', 'catDetails' => ''];
+		}
+	}
 }
 
-add_action( 'rest_api_init', 'register_api_hooks');
+/*
+ * Update Sports Category
+ *
+ */
+if(!function_exists('sportsblogUpdateCategory')) {
+	function sportsblogUpdateCategory(WP_REST_Request $requestParams) {
+		$requestedData = $requestParams->get_params();
+		$category_id = $requestedData['category_id'];
+		$category_name = $requestedData['category_name'];
+		$category_desc = $requestedData['category_desc'];
+		$updatedData = [
+			'name' => $category_name,
+			'description' => $category_desc
+		];
+		$updateCategory = wp_update_term($category_id, 'sports_blog_category', $updatedData);
+		if(!empty($updateCategory)) {
+			return ['status' => 200, 'message' => 'Category details updated.'];
+		} else {
+			return ['status' => 400, 'message' => 'No category updated.'];
+		}
+	}
+}
+
+/*
+ * Delete Sports Category
+ *
+ */
+if(!function_exists('sportsblogDeleteCategory')) {
+	function sportsblogDeleteCategory($data) {
+		$catId = $data->get_param('catId');
+		$deleteCategory = wp_delete_term($catId, 'sports_blog_category');
+		if($deleteCategory) {
+			return ['status' => 200, 'message' => 'Category deleted.'];
+		} else {
+			return ['status' => 400, 'message' => 'No category deleted.'];
+		}
+	}
+}
+
+
