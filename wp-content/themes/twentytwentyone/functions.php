@@ -697,6 +697,32 @@ function register_sportsblog_api_hooks() {
 	    )*/
   	));
 
+	/* Get Sports Blog */
+	register_rest_route( 'sportsblog/v1', '/sports-blog/get-blog-details/(?P<blogId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'GET',
+	    'callback' => 'sportsblogGetBlogDetails',
+	    /*'args' => array(
+	    	'store_code' => array(
+	    		'type' => 'string'
+	    	)
+	    )*/
+  	));
+
+  	/* Update Sports Blog */
+	register_rest_route( 'sportsblog/v1', '/sports-blog/update-blog/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'PUT',
+	    'callback' => 'sportsblogUpdateBlog'
+  	));
+
+	/* Delete Sports Blog */
+	register_rest_route( 'sportsblog/v1', '/sports-blog/delete-blog/(?P<blogId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'DELETE',
+	    'callback' => 'sportsblogDeleteBlog'
+  	));
+
 	/*register_rest_route( 'enroute/v1', '/order-details/(?P<id>\d+)', array(
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'n2_enroute_order_details'
@@ -788,6 +814,7 @@ if(!function_exists('sportsblogUpdateCategory')) {
 	}
 }
 
+
 /*
  * Delete Sports Category
  *
@@ -821,6 +848,7 @@ if(!function_exists('sportsblogGetBlogs')) {
 			foreach ($getSportsBlogs as $eachSportsCat) {
 				$blogImg = wp_get_attachment_image_src(get_post_thumbnail_id($eachSportsCat->ID), 'full');
 				$blogCat = wp_get_object_terms($eachSportsCat->ID, 'sports_blog_category');
+				$blogArr[$i]['ID'] = $eachSportsCat->ID;
 				$blogArr[$i]['title'] = $eachSportsCat->post_title;
 				$blogArr[$i]['posted_on'] = $eachSportsCat->post_date;
 				$blogArr[$i]['category'] = (!empty($blogCat)) ? $blogCat[0]->name : 'Uncategorized';
@@ -871,6 +899,80 @@ if(!function_exists('sportsblogAddBlog')) {
 		return $_POST;
 	}
 }
+
+/*
+ * Get Sports Blog Details
+ *
+ */
+if(!function_exists('sportsblogGetBlogDetails')) {
+	function sportsblogGetBlogDetails($data) {
+		$blogId = $data->get_param( 'blogId' );
+		$getBlogDetails = get_post($blogId);
+		$blogImg = wp_get_attachment_image_src(get_post_thumbnail_id($blogId), 'full');
+		$blogCat = wp_get_object_terms($blogId, 'sports_blog_category');
+		$blogArr['title'] = $getBlogDetails->post_title;
+		$blogArr['posted_on'] = $getBlogDetails->post_date;
+		$blogArr['category'] = (!empty($blogCat)) ? $blogCat[0]->slug : '';
+		$blogArr['content'] = $getBlogDetails->post_content;
+		$blogArr['image'] = $blogImg[0];
+
+		if(!is_wp_error($blogArr)) {
+			return ['status' => 200, 'message' => 'Blog details received.', 'blogDetails' => $blogArr];
+		} else {
+			return ['status' => 400, 'message' => 'No blog found.', 'blogDetails' => ''];
+		}
+	}
+}
+
+/*
+ * Update Sports Blog
+ *
+ */
+if(!function_exists('sportsblogUpdateBlog')) {
+	function sportsblogUpdateBlog(WP_REST_Request $requestParams) {
+		$requestedData = $requestParams->get_params();
+		$blogId = $requestedData['blogId'];
+		$blog_title = $requestedData['blog_title'];
+		$blog_category = $requestedData['blog_category'];
+		$blog_desc = $requestedData['blog_desc'];
+
+		if(!empty($_FILES['blog_image']['name'])) {
+			$uploadedBlogImg = common_file_upload($_FILES['blog_image']);
+			$uploadedBlogImgID = create_attachment($uploadedBlogImg);
+			set_post_thumbnail($blogId, $uploadedBlogImgID);
+		}
+
+		$updatedData = [
+			'ID' => $blogId,
+			'post_title' => $blog_title,
+			'post_content' => $blog_desc
+		];
+		$updateBlog = wp_update_post($updatedData);
+		wp_set_object_terms($blogId, $blog_category, 'sports_blog_category');
+		if(!is_wp_error($updateBlog)) {
+			return ['status' => 200, 'message' => 'Blog details updated.'];
+		} else {
+			return ['status' => 400, 'message' => 'No blog updated.'];
+		}
+	}
+}
+
+/*
+ * Delete Sports Blog
+ *
+ */
+if(!function_exists('sportsblogDeleteBlog')) {
+	function sportsblogDeleteBlog($data) {
+		$blogId = $data->get_param('blogId');
+		$deleteBlog = wp_delete_post($blogId);
+		if(!is_wp_error($deleteBlog)) {
+			return ['status' => 200, 'message' => 'Blog deleted.'];
+		} else {
+			return ['status' => 400, 'message' => 'No blog deleted.'];
+		}
+	}
+}
+
 
 /*
  * Generate Random String
