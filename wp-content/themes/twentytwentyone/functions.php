@@ -678,6 +678,25 @@ function register_sportsblog_api_hooks() {
 	    'callback' => 'sportsblogDeleteCategory'
   	));
 
+  	/* Fetch Sports Blog */
+	register_rest_route( 'sportsblog/v1', '/sports-blog/get-blogs/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => WP_REST_Server::ALLMETHODS,
+	    'callback' => 'sportsblogGetBlogs'
+  	));
+
+	/* Add Sports Blog */
+	register_rest_route( 'sportsblog/v1', '/sports-blog/add-blog/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => WP_REST_Server::ALLMETHODS,
+	    'callback' => 'sportsblogAddBlog',
+	    /*'args' => array(
+	    	'store_code' => array(
+	    		'type' => 'string'
+	    	)
+	    )*/
+  	));
+
 	/*register_rest_route( 'enroute/v1', '/order-details/(?P<id>\d+)', array(
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'n2_enroute_order_details'
@@ -786,3 +805,126 @@ if(!function_exists('sportsblogDeleteCategory')) {
 }
 
 
+/*
+ * Get Sports Blogs
+ *
+ */
+if(!function_exists('sportsblogGetBlogs')) {
+	function sportsblogGetBlogs() {
+
+		//$order = wc_get_order($data['id']);
+		$getSportsBlogs = get_posts(['post_type' => 'sportsblog', 'posts_per_page' => -1]);
+
+		if(is_array($getSportsBlogs) && count($getSportsBlogs) > 0) {
+			$blogArr = [];
+			$i = 0;
+			foreach ($getSportsBlogs as $eachSportsCat) {
+				$blogImg = wp_get_attachment_image_src(get_post_thumbnail_id($eachSportsCat->ID), 'full');
+				$blogCat = wp_get_object_terms($eachSportsCat->ID, 'sports_blog_category');
+				$blogArr[$i]['title'] = $eachSportsCat->post_title;
+				$blogArr[$i]['posted_on'] = $eachSportsCat->post_date;
+				$blogArr[$i]['category'] = (!empty($blogCat)) ? $blogCat[0]->name : 'Uncategorized';
+				$blogArr[$i]['content'] = $eachSportsCat->post_content;
+				$blogArr[$i]['image'] = $blogImg[0];
+				$i++;
+			}
+		}
+
+		if(!is_wp_error($getSportsCategory)) {
+			return ['status' => 200, 'message' => 'Sports blogs fetched successfully.', 'blogData' => $blogArr];
+		} else {
+			return ['status' => 400, 'message' => 'No sports blog found.', 'blogData' => []];
+		}
+	}
+}
+
+/*
+ * Add Sports Blog
+ *
+ */
+if(!function_exists('sportsblogAddBlog')) {
+	function sportsblogAddBlog(WP_REST_Request $requestParams) {
+		$requestedData = $requestParams->get_params();
+		$title = $requestedData['title'];
+		$category = $requestedData['category'];
+		$desc = $requestedData['desc'];
+		$blog_image = $_FILES['blog_image'];
+
+		$blogData = [
+			'post_title' => $title,
+			'post_content' => $desc,
+			'post_type' => 'sportsblog',
+			'post_status' => 'publish'
+		];
+
+		$blogId = wp_insert_post($blogData);
+		wp_set_object_terms($blogId, $category, 'sports_blog_category');
+		$uploadedBlogImg = common_file_upload($blog_image);
+		$uploadedBlogImgID = create_attachment($uploadedBlogImg);
+		set_post_thumbnail($blogId, $uploadedBlogImgID);
+
+		if(!is_wp_error($blogId)) {
+			return ['status' => 200, 'message' => 'Sports blog added successfully.'];
+		} else {
+			return ['status' => 400, 'message' => 'Sports can not be created.'];
+		}
+		return $_POST;
+	}
+}
+
+/*
+ * Generate Random String
+ *
+ */
+function generateRandomString($length = 6) {
+    $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    $charactersLength = strlen($characters);
+    $randomString = '';
+    for ($i = 0; $i < $length; $i++) {
+        $randomString .= $characters[rand(0, $charactersLength - 1)];
+    }
+    return $randomString;
+}
+
+/*
+ * Common File Upload
+ *
+ */
+function common_file_upload($uploadedFile) {
+    if (!function_exists('wp_handle_upload')) {
+        require_once( ABSPATH . 'wp-admin/includes/file.php' );
+    }
+
+    $upload_overrides = array('test_form' => false);
+
+    $movefile = wp_handle_upload($uploadedFile, $upload_overrides);
+
+    if ($movefile && !isset($movefile['error'])) {
+        return $movefile;
+    } else {
+        return $movefile['error'];
+    }
+}
+
+/*
+ * Create File Attachment
+ *
+ */
+function create_attachment($uploadedFile) {
+	$filename = $uploadedFile['file'];
+
+	$attachment = array(
+	    'guid' => $uploadedFile['url'],
+	    'post_mime_type' => $uploadedFile['type'],
+	    'post_title' => preg_replace('/\.[^.]+$/', '', basename($filename)),
+	    'post_status' => 'inherit'
+	);
+
+	$attach_id = wp_insert_attachment($attachment, $filename);
+
+	require_once( ABSPATH . 'wp-admin/includes/image.php' );
+
+	$attach_data = wp_generate_attachment_metadata($attach_id, $filename);
+	wp_update_attachment_metadata($attach_id, $attach_data);
+	return $attach_id;
+}
