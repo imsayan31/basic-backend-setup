@@ -639,7 +639,7 @@ add_action( 'rest_api_init', 'register_sportsblog_api_hooks');
 function register_sportsblog_api_hooks() {
 	
 	/* Fetch Categories */
-	register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/', array(
+	register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/(?P<perPageVal>\d+)/(?P<offsetVal>\d+)', array(
 	    /*'methods' => WP_REST_Server::CREATABLE,*/
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'sportsblogGetCategories'
@@ -741,14 +741,21 @@ function register_sportsblog_api_hooks() {
  */
 //function sportsblog_get_categories($data) {
 if(!function_exists('sportsblogGetCategories')) {
-	function sportsblogGetCategories() {
+	function sportsblogGetCategories($data) {
 
 		//$order = wc_get_order($data['id']);
-		$getSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false]);
+
+	    $per_page =  $data->get_param('perPageVal');
+		$offsetVal = $data->get_param('offsetVal');
+		//$page = ( get_query_var('paged') ) ? get_query_var( 'paged' ) : 1;
+		$page = ( $offsetVal ) ? $offsetVal : 1;
+	    $offset = ( $page - 1 ) * $per_page;
+		$getSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false, 'number' => $per_page, 'offset' => $offset]);
+		$getTotalSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false]);
 		if(!empty($getSportsCategory)) {
-			return ['status' => 200, 'message' => 'Sports categories fetched successfully.', 'categories' => $getSportsCategory];
+			return ['status' => 200, 'message' => 'Sports categories fetched successfully.', 'categories' => $getSportsCategory, 'count' => count($getTotalSportsCategory)];
 		} else {
-			return ['status' => 400, 'message' => 'No sports category found.', 'categories' => []];
+			return ['status' => 400, 'message' => 'No sports category found.', 'categories' => [], 'count' => 0];
 		}
 	}
 }
