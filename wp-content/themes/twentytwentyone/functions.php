@@ -639,7 +639,8 @@ add_action( 'rest_api_init', 'register_sportsblog_api_hooks');
 function register_sportsblog_api_hooks() {
 	
 	/* Fetch Categories */
-	register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/(?P<perPageVal>\d+)/(?P<offsetVal>\d+)', array(
+	register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/(?P<perPageVal>\d+)/(?P<offsetVal>\d+)/(?P<filterVal>\w+)', array(
+	/*register_rest_route( 'sportsblog/v1', '/sports-category/get-categories/(?P<perPageVal>[\d]+)/(?P<offsetVal>[\w]+)', array(*/
 	    /*'methods' => WP_REST_Server::CREATABLE,*/
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'sportsblogGetCategories'
@@ -723,6 +724,19 @@ function register_sportsblog_api_hooks() {
 	    'callback' => 'sportsblogDeleteBlog'
   	));
 
+
+	/* Add User */
+	register_rest_route( 'sportsblog/v1', '/user-auth/add-user/', array(
+	    'methods' => WP_REST_Server::CREATABLE,
+	    /*'methods' => WP_REST_Server::ALLMETHODS,*/
+	    'callback' => 'sportsblogAddUser',
+	    'args' => array(
+	    	'store_code' => array(
+	    		'type' => 'string'
+	    	)
+	    )
+  	));
+
 	/*register_rest_route( 'enroute/v1', '/order-details/(?P<id>\d+)', array(
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'n2_enroute_order_details'
@@ -733,6 +747,37 @@ function register_sportsblog_api_hooks() {
 	    'callback' => 'n2_enroute_product_details'
   	));*/
 
+}
+
+/*
+ * Add User
+ *
+ *	
+*/
+if(!function_exists('sportsblogAddUser')) {
+	function sportsblogAddUser(WP_REST_Request $requestParams) {
+		$requestedData = $requestParams->get_params();
+		$first_name = $requestedData['first_name'];
+		$last_name = $requestedData['last_name'];
+		$email = $requestedData['email'];
+		$phone = $requestedData['phone'];
+		$password = $requestedData['password'];
+
+		$userID = wp_create_user($email, $password, $email);
+		$getUser = new WP_User($userID);
+		$getUser->remove_role('subscriber');
+		$getUser->add_role('blog_owner');
+		update_user_meta($userID, 'first_name', $first_name);
+		update_user_meta($userID, 'last_name', $last_name);
+		update_user_meta($userID, 'phone', $phone);
+
+		if(!is_wp_error($userID)) {
+			return ['status' => 200, 'message' => 'You have registered successfully.'];
+		} else {
+			return ['status' => 400, 'message' => 'Registration can not be completed.'];
+		}
+
+	}
 }
 
 /*
@@ -747,10 +792,15 @@ if(!function_exists('sportsblogGetCategories')) {
 
 	    $per_page =  $data->get_param('perPageVal');
 		$offsetVal = $data->get_param('offsetVal');
+		$filterVal = $data->get_param('filterVal');
 		//$page = ( get_query_var('paged') ) ? get_query_var( 'paged' ) : 1;
 		$page = ( $offsetVal ) ? $offsetVal : 1;
 	    $offset = ( $page - 1 ) * $per_page;
-		$getSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false, 'number' => $per_page, 'offset' => $offset]);
+	    $termArgs = ['hide_empty' => false, 'number' => $per_page, 'offset' => $offset];
+	    if($filterVal != "all") {
+	    	$termArgs['name__like'] = $filterVal;
+	    }
+		$getSportsCategory = get_terms('sports_blog_category', $termArgs);
 		$getTotalSportsCategory = get_terms('sports_blog_category', ['hide_empty' => false]);
 		if(!empty($getSportsCategory)) {
 			return ['status' => 200, 'message' => 'Sports categories fetched successfully.', 'categories' => $getSportsCategory, 'count' => count($getTotalSportsCategory)];
