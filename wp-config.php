@@ -37,9 +37,11 @@ define( 'DB_CHARSET', 'utf8mb4' );
 /** The Database Collate type. Don't change this if in doubt. */
 define( 'DB_COLLATE', '' );
 
-define('JWT_AUTH_SECRET_KEY', 'your-top-secret-key');
+define('JWT_AUTH_SECRET_KEY', ';I.6EqS1q3J?dQ/Ao}yza)iQ&_/2qxmC,+gytP)R$$L|hXV:ugS=f4a|9sO<C/d7');
 
 define('JWT_AUTH_EXPIRE', time() + 1800);
+
+//define('JWT_AUTH_CORS_ENABLE', true);
 
 /**#@+
  * Authentication Unique Keys and Salts.
