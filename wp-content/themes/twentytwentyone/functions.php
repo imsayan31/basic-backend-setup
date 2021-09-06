@@ -680,7 +680,7 @@ function register_sportsblog_api_hooks() {
   	));
 
   	/* Fetch Sports Blog */
-	register_rest_route( 'sportsblog/v1', '/sports-blog/get-blogs/', array(
+	register_rest_route( 'sportsblog/v1', '/sports-blog/get-blogs/(?P<perPageVal>\d+)/(?P<offsetVal>\d+)/(?P<filterVal>\w+)', array(
 	    /*'methods' => WP_REST_Server::CREATABLE,*/
 	    'methods' => WP_REST_Server::ALLMETHODS,
 	    'callback' => 'sportsblogGetBlogs'
@@ -719,6 +719,44 @@ function register_sportsblog_api_hooks() {
 
 	/* Delete Sports Blog */
 	register_rest_route( 'sportsblog/v1', '/sports-blog/delete-blog/(?P<blogId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'DELETE',
+	    'callback' => 'sportsblogDeleteBlog'
+  	));
+
+  	/* Fetch Sports Blog Comments */
+	register_rest_route( 'sportsblog/v1', '/sports-comment/get-blogs/(?P<perPageVal>\d+)/(?P<offsetVal>\d+)/(?P<filterVal>\w+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => WP_REST_Server::ALLMETHODS,
+	    'callback' => 'sportsblogGetBlogs'
+  	));
+
+	/* Add Sports Blog Comment */
+	register_rest_route( 'sportsblog/v1', '/sports-comment/add-blog/', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => WP_REST_Server::ALLMETHODS,
+	    'callback' => 'sportsblogAddBlog',
+	    /*'args' => array(
+	    	'store_code' => array(
+	    		'type' => 'string'
+	    	)
+	    )*/
+  	));
+
+	/* Get Sports Blog Comment */
+	register_rest_route( 'sportsblog/v1', '/sports-comment/get-blog-details/(?P<blogId>\d+)', array(
+	    /*'methods' => WP_REST_Server::CREATABLE,*/
+	    'methods' => 'GET',
+	    'callback' => 'sportsblogGetBlogDetails',
+	    /*'args' => array(
+	    	'store_code' => array(
+	    		'type' => 'string'
+	    	)
+	    )*/
+  	));
+
+	/* Delete Sports Blog Comment */
+	register_rest_route( 'sportsblog/v1', '/sports-comment/delete-blog/(?P<blogId>\d+)', array(
 	    /*'methods' => WP_REST_Server::CREATABLE,*/
 	    'methods' => 'DELETE',
 	    'callback' => 'sportsblogDeleteBlog'
@@ -942,21 +980,21 @@ if(!function_exists('sportsblogDeleteCategory')) {
  *
  */
 if(!function_exists('sportsblogGetBlogs')) {
-	function sportsblogGetBlogs() {
+	function sportsblogGetBlogs($data) {
 
-		//Get HTTP request headers 
-    	$auth = apache_request_headers();
-	    //Get only Authorization header
-	    $valid = $auth['Authorization'];
+		$per_page =  $data->get_param('perPageVal');
+		$offsetVal = $data->get_param('offsetVal');
+		$filterVal = $data->get_param('filterVal');
 
-	    echo '<pre>';
-	    print_r($auth);
-	    echo '</pre>';
-	    exit;
+		$page = ( $offsetVal ) ? $offsetVal : 1;
+	    $offset = ( $page - 1 ) * $per_page;
 
-		//$order = wc_get_order($data['id']);
-		$getSportsBlogs = get_posts(['post_type' => 'sportsblog', 'posts_per_page' => -1]);
-
+		$blogArgs = ['post_type' => 'sportsblog', 'numberposts' => $per_page, 'offset' => $offset];
+		if($filterVal != "all") {
+	    	$termArgs['s'] = $filterVal;
+	    }
+		$getSportsBlogs = get_posts($blogArgs);
+		$getTotalSportsBlogs = get_posts(['post_type' => 'sportsblog', 'numberposts' => -1]);
 		if(is_array($getSportsBlogs) && count($getSportsBlogs) > 0) {
 			$blogArr = [];
 			$i = 0;
@@ -974,9 +1012,9 @@ if(!function_exists('sportsblogGetBlogs')) {
 		}
 
 		if(!is_wp_error($getSportsBlogs)) {
-			return ['status' => 200, 'message' => 'Sports blogs fetched successfully.', 'blogData' => $blogArr];
+			return ['status' => 200, 'message' => 'Sports blogs fetched successfully.', 'blogData' => $blogArr, 'count' => count($getTotalSportsBlogs)];
 		} else {
-			return ['status' => 400, 'message' => 'No sports blog found.', 'blogData' => []];
+			return ['status' => 400, 'message' => 'No sports blog found.', 'blogData' => [], 'count' => 0];
 		}
 	}
 }
@@ -1027,7 +1065,7 @@ if(!function_exists('sportsblogGetBlogDetails')) {
 		$blogCat = wp_get_object_terms($blogId, 'sports_blog_category');
 		$blogArr['title'] = $getBlogDetails->post_title;
 		$blogArr['posted_on'] = $getBlogDetails->post_date;
-		$blogArr['category'] = (!empty($blogCat)) ? $blogCat[0]->slug : '';
+		$blogArr['category'] = (!empty($blogCat)) ? $blogCat[0]->name : '';
 		$blogArr['content'] = $getBlogDetails->post_content;
 		$blogArr['image'] = $blogImg[0];
 
